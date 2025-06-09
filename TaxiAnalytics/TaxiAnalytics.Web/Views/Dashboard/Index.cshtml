@@ -1,0 +1,1211 @@
+@{
+    ViewData["Title"] = "NYC Taxi Analytics Dashboard";
+}
+
+<div class="dashboard-container">
+    <div class="row mb-4">
+        <div class="col text-center">
+            <h1 class="dashboard-title">NYC Taxi Analytics Dashboard</h1>
+            <div class="database-switcher alert-database">
+                <h5 class="mb-3">
+                    <i class="fas fa-database me-2"></i>
+                    Current Database: <span class="text-uppercase fw-bold">@ViewBag.CurrentDatabase</span>
+                </h5>
+                <div class="mt-3">
+                    <a href="?db=clickhouse" class="btn btn-database @(ViewBag.CurrentDatabase == "clickhouse" ? "btn-light" : "btn-outline-light")">
+                        <i class="fas fa-bolt me-2"></i>ClickHouse
+                    </a>
+                    <a href="?db=postgresql" class="btn btn-database @(ViewBag.CurrentDatabase == "postgresql" ? "btn-light" : "btn-outline-light")">
+                        <i class="fas fa-elephant me-2"></i>PostgreSQL
+                    </a>
+                </div>
+                <div class="mt-4 pt-3 border-top border-light border-opacity-25">
+                    <div class="live-update-control">
+                        <div class="form-check form-switch d-inline-block">
+                            <input class="form-check-input" type="checkbox" id="liveUpdateToggle" style="transform: scale(1.2);">
+                            <label class="form-check-label text-light ms-2" for="liveUpdateToggle">
+                                <i class="fas fa-sync-alt me-2"></i>Live Updates
+                            </label>
+                        </div>
+                        <small class="text-light d-block mt-2">
+                            <span id="liveUpdateStatus">Disabled</span> 
+                            <span id="nextUpdateTimer" style="display: none;">• Next update in <span id="countdown">10</span>s</span>
+                            <span id="lastUpdateTime" style="display: none;">• Last updated: <span id="lastUpdate">-</span></span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4" id="metricsRow" style="display: none;">
+        <div class="col-md-3 mb-3">
+            <div class="metric-card fade-in">
+                <h6>Total Records</h6>
+                <h3 id="totalRecords">-</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card fade-in" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                <h6>Total Revenue</h6>
+                <h3 id="totalRevenue">-</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card fade-in" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <h6>Avg Trip Distance</h6>
+                <h3 id="avgDistance">-</h3>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="metric-card fade-in" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                <h6>Peak Hour</h6>
+                <h3 id="peakHour">-</h3>
+                <small id="peakHourInfo" class="text-white-50">-</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-day me-2"></i>Top 10 Busiest Days</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="busiestDaysLoading"></div>
+                    <canvas id="busiestDaysChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-credit-card me-2"></i>Payment Type Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="paymentTypeLoading"></div>
+                    <canvas id="paymentTypeChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Hourly Trip Patterns</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="hourlyPatternsLoading"></div>
+                    <canvas id="hourlyPatternsChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-route me-2"></i>Trip Distance Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="distanceDistributionLoading"></div>
+                    <canvas id="distanceDistributionChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-taxi me-2"></i>Revenue by Vendor</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="vendorRevenueLoading"></div>
+                    <canvas id="vendorRevenueChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Cumulative Trends (First 30 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="cumulativeStatsLoading"></div>
+                    <canvas id="cumulativeStatsChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Comparison Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card fade-in" style="border: 2px solid #FF6B6B;">
+                <div class="card-header" style="background: linear-gradient(135deg, #FF6B6B 0%, #FF8E85 100%);">
+                    <h5 class="mb-0"><i class="fas fa-stopwatch me-2"></i>Performance Comparison: ClickHouse vs PostgreSQL</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="performanceComparisonLoading"></div>
+                    <canvas id="performanceComparisonChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Analytics Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h3 class="text-center mb-4" style="color: #667eea; font-weight: 700;">
+                <i class="fas fa-chart-area me-2"></i>Advanced Analytics
+            </h3>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Top Pickup Locations</h5>
+                    <small class="text-light" id="pickupLocationsTime">Loading...</small>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="topPickupLocationsLoading"></div>
+                    <canvas id="topPickupLocationsChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>Hourly Revenue Trends</h5>
+                    <small class="text-light" id="hourlyRevenueTime">Loading...</small>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="hourlyRevenueTimeSeriesLoading"></div>
+                    <canvas id="hourlyRevenueTimeSeriesChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-analytics me-2"></i>Trip Category Analysis</h5>
+                    <small class="text-light" id="tripAnalyticsTime">Loading...</small>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="advancedTripAnalyticsLoading"></div>
+                    <canvas id="advancedTripAnalyticsChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card fade-in">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-calendar-week me-2"></i>Weekday vs Weekend</h5>
+                    <small class="text-light" id="weekendAnalysisTime">Loading...</small>
+                </div>
+                <div class="card-body">
+                    <div class="chart-loading" id="weekdayVsWeekendLoading"></div>
+                    <canvas id="weekdayVsWeekendChart" style="display: none;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Helper function to format numbers
+        function formatNumber(num) {
+            return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
+        }
+
+        // Payment type mapping
+        const paymentTypeNames = {
+            0: 'Unknown',
+            1: 'Credit Card',
+            2: 'Cash',
+            3: 'No Charge',
+            4: 'Dispute',
+            5: 'Other'
+        };
+
+        // Create gradient helper
+        function createGradient(ctx, colorStart, colorEnd, isVertical = true) {
+            const gradient = isVertical 
+                ? ctx.createLinearGradient(0, 0, 0, 400)
+                : ctx.createLinearGradient(0, 0, 400, 0);
+            gradient.addColorStop(0, colorStart);
+            gradient.addColorStop(1, colorEnd);
+            return gradient;
+        }
+
+        // Create radial gradient
+        function createRadialGradient(ctx, colorInner, colorOuter) {
+            const gradient = ctx.createRadialGradient(200, 200, 0, 200, 200, 200);
+            gradient.addColorStop(0, colorInner);
+            gradient.addColorStop(1, colorOuter);
+            return gradient;
+        }
+
+        // Animation configurations
+        const animationConfig = {
+            tension: 0.4,
+            borderWidth: 3,
+            pointRadius: 0,
+            pointHoverRadius: 8,
+            pointHoverBorderWidth: 3,
+            pointHoverBackgroundColor: '#fff'
+        };
+
+        // Global chart defaults
+        Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,0.8)';
+        Chart.defaults.plugins.tooltip.padding = 12;
+        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+        Chart.defaults.plugins.tooltip.titleFont.size = 14;
+        Chart.defaults.plugins.tooltip.bodyFont.size = 13;
+
+        // Show/hide loading animation
+        function toggleLoading(chartId, show) {
+            const loadingElement = document.getElementById(chartId + 'Loading');
+            const chartElement = document.getElementById(chartId + 'Chart');
+            
+            if (loadingElement) {
+                loadingElement.style.display = show ? 'block' : 'none';
+            }
+            if (chartElement) {
+                chartElement.style.display = show ? 'none' : 'block';
+            }
+        }
+
+        // Performance data storage
+        let performanceData = [];
+
+        // Load all charts
+        async function loadCharts() {
+            // Show all loading animations
+            const charts = ['busiestDays', 'paymentType', 'hourlyPatterns', 'distanceDistribution', 'vendorRevenue', 'cumulativeStats', 'performanceComparison', 'topPickupLocations', 'hourlyRevenueTimeSeries', 'advancedTripAnalytics', 'weekdayVsWeekend'];
+            charts.forEach(chart => toggleLoading(chart, true));
+            // 1. Busiest Days Chart
+            const busiestDaysResponse = await fetch('/Dashboard/Top10BusiestDays');
+            const busiestDaysData = await busiestDaysResponse.json();
+            
+            const ctx1 = document.getElementById('busiestDaysChart').getContext('2d');
+            const gradient1 = createGradient(ctx1, '#667eea', '#764ba2');
+            
+            toggleLoading('busiestDays', false);
+            new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: busiestDaysData.map(d => new Date(d.pickupDate).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Trip Count',
+                        data: busiestDaysData.map(d => d.tripCount),
+                        backgroundColor: gradient1,
+                        borderColor: '#667eea',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        hoverBackgroundColor: '#764ba2',
+                        hoverBorderColor: '#667eea',
+                        hoverBorderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeInOutQuart',
+                        onProgress: function(animation) {
+                            const progress = animation.currentStep / animation.numSteps;
+                            ctx1.globalAlpha = progress;
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                borderDash: [5, 5]
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value);
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Trips: ' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 2. Payment Type Chart
+            const paymentTypeResponse = await fetch('/Dashboard/PaymentTypeDistribution');
+            const paymentTypeData = await paymentTypeResponse.json();
+            
+            const ctx2 = document.getElementById('paymentTypeChart').getContext('2d');
+            
+            toggleLoading('paymentType', false);
+            new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: paymentTypeData.map(d => paymentTypeNames[d.paymentType] || 'Type ' + d.paymentType),
+                    datasets: [{
+                        data: paymentTypeData.map(d => d.trips),
+                        backgroundColor: [
+                            createGradient(ctx2, '#FF6384', '#FF1744'),
+                            createGradient(ctx2, '#36A2EB', '#2196F3'),
+                            createGradient(ctx2, '#FFCE56', '#FFC107'),
+                            createGradient(ctx2, '#4BC0C0', '#00BCD4'),
+                            createGradient(ctx2, '#9966FF', '#7E57C2'),
+                            createGradient(ctx2, '#FF9F40', '#FF6F00')
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 3,
+                        hoverBorderColor: '#fff',
+                        hoverBorderWidth: 5,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '60%',
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 2000,
+                        easing: 'easeInOutCubic'
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = formatNumber(context.parsed);
+                                    const percentage = ((context.parsed / context.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1);
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 3. Hourly Patterns Chart
+            const hourlyResponse = await fetch('/Dashboard/HourlyPatterns');
+            const hourlyData = await hourlyResponse.json();
+            
+            const ctx3 = document.getElementById('hourlyPatternsChart').getContext('2d');
+            const gradient3 = createGradient(ctx3, 'rgba(75, 192, 192, 0.6)', 'rgba(75, 192, 192, 0.1)');
+            
+            // Get dashboard metrics
+            const metricsResponse = await fetch('/Dashboard/DashboardMetrics');
+            const metricsData = await metricsResponse.json();
+            
+            // Update metrics display with proper formatting
+            document.getElementById('metricsRow').style.display = 'flex';
+            document.getElementById('totalRecords').textContent = formatNumber(metricsData.totalRecords);
+            
+            // Format revenue in billions
+            const revenueInBillions = (metricsData.totalRevenue / 1000000000).toFixed(2);
+            document.getElementById('totalRevenue').textContent = '$' + revenueInBillions + 'B';
+            
+            document.getElementById('avgDistance').textContent = metricsData.avgTripDistance.toFixed(2) + ' mi';
+            document.getElementById('peakHour').textContent = metricsData.peakHour + ':00';
+            
+            // Show peak hour premium/discount info
+            const peakInfo = metricsData.isPeakPremium 
+                ? `+${metricsData.peakDifferencePercent}% premium`
+                : `-${metricsData.peakDifferencePercent}% discount`;
+            document.getElementById('peakHourInfo').textContent = peakInfo;
+            
+            toggleLoading('hourlyPatterns', false);
+            new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: hourlyData.map(d => d.hour + ':00'),
+                    datasets: [{
+                        label: 'Trip Count',
+                        data: hourlyData.map(d => d.trips),
+                        backgroundColor: gradient3,
+                        borderColor: createGradient(ctx3, '#4BC0C0', '#00BCD4', false),
+                        borderWidth: 3,
+                        fill: true,
+                        ...animationConfig
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    animation: {
+                        duration: 2500,
+                        easing: 'easeInOutQuart'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                borderDash: [5, 5]
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value);
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.03)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Trips: ' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 4. Distance Distribution Chart
+            const distanceResponse = await fetch('/Dashboard/DistanceDistribution');
+            const distanceData = await distanceResponse.json();
+            
+            const ctx4 = document.getElementById('distanceDistributionChart').getContext('2d');
+            const gradient4 = createGradient(ctx4, '#FFCE56', '#FF8F00');
+            
+            toggleLoading('distanceDistribution', false);
+            new Chart(ctx4, {
+                type: 'bar',
+                data: {
+                    labels: distanceData.map(d => d.distanceBucket + '-' + (d.distanceBucket + 5) + ' mi'),
+                    datasets: [{
+                        label: 'Trip Count',
+                        data: distanceData.map(d => d.tripCount),
+                        backgroundColor: gradient4,
+                        borderColor: '#FF8F00',
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        hoverBackgroundColor: '#FF6F00',
+                        hoverBorderColor: '#FF8F00',
+                        hoverBorderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 2200,
+                        easing: 'easeInOutBounce'
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            type: 'logarithmic',
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                borderDash: [5, 5]
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value);
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Trips: ' + formatNumber(context.parsed.y);
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // 5. Vendor Revenue Chart
+            const vendorResponse = await fetch('/Dashboard/VendorRevenue');
+            const vendorData = await vendorResponse.json();
+            
+            const ctx5 = document.getElementById('vendorRevenueChart').getContext('2d');
+            const gradient5 = createGradient(ctx5, '#9966FF', '#6A1B9A');
+            
+            toggleLoading('vendorRevenue', false);
+            new Chart(ctx5, {
+                type: 'polarArea',
+                data: {
+                    labels: vendorData.map(d => 'Vendor ' + d.vendorId),
+                    datasets: [{
+                        label: 'Total Revenue ($)',
+                        data: vendorData.map(d => d.totalRevenue),
+                        backgroundColor: [
+                            createRadialGradient(ctx5, '#9966FF', '#6A1B9A'),
+                            createRadialGradient(ctx5, '#FF6384', '#C2185B'),
+                            createRadialGradient(ctx5, '#36A2EB', '#1976D2'),
+                            createRadialGradient(ctx5, '#4BC0C0', '#00796B')
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 3,
+                        hoverBorderWidth: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 2800,
+                        easing: 'easeInOutElastic'
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Revenue: $' + formatNumber(context.parsed.r);
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                backdropColor: 'transparent',
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 6. Cumulative Stats Chart
+            const cumulativeResponse = await fetch('/Dashboard/CumulativeStats');
+            const cumulativeData = await cumulativeResponse.json();
+            
+            const ctx6 = document.getElementById('cumulativeStatsChart').getContext('2d');
+            const gradient6a = createGradient(ctx6, 'rgba(255, 159, 64, 0.4)', 'rgba(255, 159, 64, 0.1)');
+            const gradient6b = createGradient(ctx6, 'rgba(54, 162, 235, 0.4)', 'rgba(54, 162, 235, 0.1)');
+            
+            toggleLoading('cumulativeStats', false);
+            new Chart(ctx6, {
+                type: 'line',
+                data: {
+                    labels: cumulativeData.map(d => new Date(d.pickupDate).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Cumulative Trips',
+                        data: cumulativeData.map(d => d.cumulativeTrips),
+                        backgroundColor: gradient6a,
+                        borderColor: createGradient(ctx6, '#FF9F40', '#FF6F00', false),
+                        borderWidth: 3,
+                        fill: true,
+                        yAxisID: 'y',
+                        ...animationConfig
+                    }, {
+                        label: 'Cumulative Revenue',
+                        data: cumulativeData.map(d => d.cumulativeRevenue),
+                        backgroundColor: gradient6b,
+                        borderColor: createGradient(ctx6, '#36A2EB', '#1976D2', false),
+                        borderWidth: 3,
+                        fill: true,
+                        yAxisID: 'y1',
+                        ...animationConfig
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    animation: {
+                        duration: 3000,
+                        easing: 'easeInOutCubic'
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                borderDash: [5, 5]
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value);
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + formatNumber(value);
+                                },
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.03)'
+                            },
+                            ticks: {
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.datasetIndex === 0) {
+                                        return 'Trips: ' + formatNumber(context.parsed.y);
+                                    } else {
+                                        return 'Revenue: $' + formatNumber(context.parsed.y);
+                                    }
+                                }
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 13
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Load advanced analytics charts
+            await loadAdvancedCharts();
+            
+            // Load performance comparison
+            await loadPerformanceComparison();
+        }
+
+        // Load Advanced Analytics Charts
+        async function loadAdvancedCharts() {
+            // Top Pickup Locations
+            const pickupResponse = await fetch('/Dashboard/TopPickupLocations');
+            const pickupResult = await pickupResponse.json();
+            
+            document.getElementById('pickupLocationsTime').textContent = `Executed in ${pickupResult.executionTimeMs.toFixed(2)}ms`;
+            
+            const ctx7 = document.getElementById('topPickupLocationsChart').getContext('2d');
+            const gradient7 = createGradient(ctx7, '#FF6B6B', '#FF8E85');
+            
+            toggleLoading('topPickupLocations', false);
+            new Chart(ctx7, {
+                type: 'bar',
+                data: {
+                    labels: pickupResult.data.slice(0, 10).map(d => d.locationName),
+                    datasets: [{
+                        label: 'Trip Count',
+                        data: pickupResult.data.slice(0, 10).map(d => d.tripCount),
+                        backgroundColor: gradient7,
+                        borderColor: '#FF6B6B',
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 2000, easing: 'easeInOutCubic' },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { callback: value => formatNumber(value) }
+                        },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => `Trips: ${formatNumber(context.parsed.y)}`
+                            }
+                        },
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // Hourly Revenue Time Series
+            const timeSeriesResponse = await fetch('/Dashboard/HourlyRevenueTimeSeries');
+            const timeSeriesResult = await timeSeriesResponse.json();
+            
+            document.getElementById('hourlyRevenueTime').textContent = `Executed in ${timeSeriesResult.executionTimeMs.toFixed(2)}ms`;
+            
+            const ctx8 = document.getElementById('hourlyRevenueTimeSeriesChart').getContext('2d');
+            const gradient8a = createGradient(ctx8, 'rgba(75, 192, 192, 0.6)', 'rgba(75, 192, 192, 0.1)');
+            const gradient8b = createGradient(ctx8, 'rgba(255, 99, 132, 0.6)', 'rgba(255, 99, 132, 0.1)');
+            
+            toggleLoading('hourlyRevenueTimeSeries', false);
+            new Chart(ctx8, {
+                type: 'line',
+                data: {
+                    labels: timeSeriesResult.data.map(d => new Date(d.timeStamp).toLocaleTimeString()),
+                    datasets: [{
+                        label: 'Revenue',
+                        data: timeSeriesResult.data.map(d => d.value),
+                        backgroundColor: gradient8a,
+                        borderColor: '#4BC0C0',
+                        borderWidth: 3,
+                        fill: true,
+                        ...animationConfig
+                    }, {
+                        label: 'Moving Average',
+                        data: timeSeriesResult.data.map(d => d.movingAverage),
+                        backgroundColor: gradient8b,
+                        borderColor: '#FF6384',
+                        borderWidth: 2,
+                        fill: false,
+                        ...animationConfig
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 2500, easing: 'easeInOutQuart' },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { callback: value => '$' + formatNumber(value) }
+                        },
+                        x: { grid: { color: 'rgba(0, 0, 0, 0.03)' } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => context.datasetIndex === 0 ? 
+                                    `Revenue: $${formatNumber(context.parsed.y)}` : 
+                                    `Moving Avg: $${formatNumber(context.parsed.y)}`
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Advanced Trip Analytics
+            const tripAnalyticsResponse = await fetch('/Dashboard/AdvancedTripAnalytics');
+            const tripAnalyticsResult = await tripAnalyticsResponse.json();
+            
+            document.getElementById('tripAnalyticsTime').textContent = `Executed in ${tripAnalyticsResult.executionTimeMs.toFixed(2)}ms`;
+            
+            const ctx9 = document.getElementById('advancedTripAnalyticsChart').getContext('2d');
+            
+            toggleLoading('advancedTripAnalytics', false);
+            new Chart(ctx9, {
+                type: 'doughnut',
+                data: {
+                    labels: tripAnalyticsResult.data.map(d => d.category),
+                    datasets: [{
+                        data: tripAnalyticsResult.data.map(d => d.value),
+                        backgroundColor: [
+                            createGradient(ctx9, '#667eea', '#764ba2'),
+                            createGradient(ctx9, '#f093fb', '#f5576c'),
+                            createGradient(ctx9, '#4facfe', '#00f2fe'),
+                            createGradient(ctx9, '#43e97b', '#38f9d7')
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 3,
+                        hoverOffset: 15
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '50%',
+                    animation: { duration: 2000, easing: 'easeInOutBounce' },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.label}: $${context.parsed.toFixed(2)} avg`
+                            }
+                        },
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 15, usePointStyle: true }
+                        }
+                    }
+                }
+            });
+
+            // Weekday vs Weekend Analysis
+            const weekendResponse = await fetch('/Dashboard/WeekdayVsWeekendAnalysis');
+            const weekendResult = await weekendResponse.json();
+            
+            document.getElementById('weekendAnalysisTime').textContent = `Executed in ${weekendResult.executionTimeMs.toFixed(2)}ms`;
+            
+            const ctx10 = document.getElementById('weekdayVsWeekendChart').getContext('2d');
+            
+            toggleLoading('weekdayVsWeekend', false);
+            new Chart(ctx10, {
+                type: 'bar',
+                data: {
+                    labels: weekendResult.data.map(d => d.category),
+                    datasets: [{
+                        label: 'Average Fare',
+                        data: weekendResult.data.map(d => d.value),
+                        backgroundColor: [
+                            createGradient(ctx10, '#FF6B6B', '#FF8E85'),
+                            createGradient(ctx10, '#4ECDC4', '#44A08D')
+                        ],
+                        borderColor: ['#FF6B6B', '#4ECDC4'],
+                        borderWidth: 2,
+                        borderRadius: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 2200, easing: 'easeInOutElastic' },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                            ticks: { callback: value => '$' + value.toFixed(2) }
+                        },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => `Avg Fare: $${context.parsed.y.toFixed(2)}`
+                            }
+                        },
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // Load Performance Comparison
+        async function loadPerformanceComparison() {
+            try {
+                const performanceResponse = await fetch('/Dashboard/PerformanceComparison');
+                const performanceResult = await performanceResponse.json();
+                
+                const ctx11 = document.getElementById('performanceComparisonChart').getContext('2d');
+                
+                toggleLoading('performanceComparison', false);
+                new Chart(ctx11, {
+                    type: 'bar',
+                    data: {
+                        labels: performanceResult.map(d => d.queryName),
+                        datasets: [{
+                            label: `${performanceResult[0].database} Execution Time (ms)`,
+                            data: performanceResult.map(d => d.executionTimeMs),
+                            backgroundColor: performanceResult[0].database === 'ClickHouse' ? 
+                                createGradient(ctx11, '#FF6B6B', '#FF8E85') :
+                                createGradient(ctx11, '#4ECDC4', '#44A08D'),
+                            borderColor: performanceResult[0].database === 'ClickHouse' ? '#FF6B6B' : '#4ECDC4',
+                            borderWidth: 2,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: { duration: 3000, easing: 'easeInOutCubic' },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                                ticks: { 
+                                    callback: value => value.toFixed(0) + 'ms',
+                                    font: { size: 12 }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Execution Time (milliseconds)',
+                                    font: { size: 14, weight: 'bold' }
+                                }
+                            },
+                            x: { 
+                                grid: { display: false },
+                                ticks: { font: { size: 11 } }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: context => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}ms`
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: `${performanceResult[0].database} Query Performance`,
+                                font: { size: 16, weight: 'bold' },
+                                color: performanceResult[0].database === 'ClickHouse' ? '#FF6B6B' : '#4ECDC4'
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Performance comparison failed:', error);
+                toggleLoading('performanceComparison', false);
+                document.getElementById('performanceComparisonChart').parentElement.innerHTML = 
+                    '<div class="text-center text-muted"><i class="fas fa-exclamation-triangle"></i> Performance data unavailable</div>';
+            }
+        }
+
+        // Add some interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add entrance animations
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = (index * 0.1) + 's';
+                card.classList.add('fade-in');
+            });
+
+            // Load charts with a slight delay for dramatic effect
+            setTimeout(loadCharts, 500);
+        });
+
+        // Live Update Functionality
+        let liveUpdateInterval = null;
+        let countdownInterval = null;
+        let countdownSeconds = 10;
+
+        function updateCountdown() {
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                countdownElement.textContent = countdownSeconds;
+                countdownSeconds--;
+                
+                if (countdownSeconds < 0) {
+                    countdownSeconds = 10;
+                }
+            }
+        }
+
+        function updateLastUpdateTime() {
+            const lastUpdateElement = document.getElementById('lastUpdate');
+            if (lastUpdateElement) {
+                lastUpdateElement.textContent = new Date().toLocaleTimeString();
+            }
+        }
+
+        function startLiveUpdates() {
+            const statusElement = document.getElementById('liveUpdateStatus');
+            const timerElement = document.getElementById('nextUpdateTimer');
+            const lastUpdateElement = document.getElementById('lastUpdateTime');
+            
+            statusElement.textContent = 'Enabled';
+            statusElement.className = 'text-success fw-bold';
+            timerElement.style.display = 'inline';
+            lastUpdateElement.style.display = 'inline';
+            
+            // Start countdown timer
+            countdownSeconds = 10;
+            countdownInterval = setInterval(updateCountdown, 1000);
+            
+            // Start live updates every 10 seconds
+            liveUpdateInterval = setInterval(async () => {
+                try {
+                    console.log('🔄 Live update: Refreshing all dashboard components...');
+                    
+                    // Show loading indicator
+                    const syncIcon = document.querySelector('#liveUpdateToggle + label i');
+                    if (syncIcon) {
+                        syncIcon.classList.add('fa-spin');
+                    }
+                    
+                    // Show loading animations for all charts
+                    const charts = ['busiestDays', 'paymentType', 'hourlyPatterns', 'distanceDistribution', 'vendorRevenue', 'cumulativeStats', 'performanceComparison', 'topPickupLocations', 'hourlyRevenueTimeSeries', 'advancedTripAnalytics', 'weekdayVsWeekend'];
+                    charts.forEach(chart => toggleLoading(chart, true));
+                    
+                    // Clear existing charts
+                    Chart.helpers.each(Chart.instances, function(instance) {
+                        instance.destroy();
+                    });
+                    
+                    // Reload all dashboard data and charts
+                    await loadCharts();
+                    
+                    // Update last update time
+                    updateLastUpdateTime();
+                    
+                    // Reset countdown
+                    countdownSeconds = 10;
+                    
+                    console.log('✅ Live update completed successfully - All components refreshed');
+                    
+                    // Remove loading animation
+                    if (syncIcon) {
+                        syncIcon.classList.remove('fa-spin');
+                    }
+                    
+                } catch (error) {
+                    console.error('❌ Live update failed:', error);
+                    
+                    // Remove loading animation even on error
+                    const syncIcon = document.querySelector('#liveUpdateToggle + label i');
+                    if (syncIcon) {
+                        syncIcon.classList.remove('fa-spin');
+                    }
+                }
+            }, 10000);
+            
+            console.log('🟢 Live updates started (every 10 seconds)');
+        }
+
+        function stopLiveUpdates() {
+            const statusElement = document.getElementById('liveUpdateStatus');
+            const timerElement = document.getElementById('nextUpdateTimer');
+            const lastUpdateElement = document.getElementById('lastUpdateTime');
+            
+            statusElement.textContent = 'Disabled';
+            statusElement.className = 'text-light';
+            timerElement.style.display = 'none';
+            lastUpdateElement.style.display = 'none';
+            
+            if (liveUpdateInterval) {
+                clearInterval(liveUpdateInterval);
+                liveUpdateInterval = null;
+            }
+            
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            
+            console.log('🔴 Live updates stopped');
+        }
+
+        // Initialize live update toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const liveUpdateToggle = document.getElementById('liveUpdateToggle');
+            
+            liveUpdateToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    startLiveUpdates();
+                } else {
+                    stopLiveUpdates();
+                }
+            });
+        });
+    </script>
+}
