@@ -227,6 +227,14 @@
 
 @section Scripts {
     <script>
+        // Get the current database from ViewBag
+        const currentDatabase = '@ViewBag.CurrentDatabase';
+        
+        // Helper function to build URL with database parameter
+        function buildUrl(endpoint) {
+            return `${endpoint}?db=${currentDatabase}`;
+        }
+        
         // Helper function to format numbers
         function formatNumber(num) {
             return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
@@ -300,7 +308,7 @@
             const charts = ['busiestDays', 'paymentType', 'hourlyPatterns', 'distanceDistribution', 'vendorRevenue', 'cumulativeStats', 'performanceComparison', 'topPickupLocations', 'hourlyRevenueTimeSeries', 'advancedTripAnalytics', 'weekdayVsWeekend'];
             charts.forEach(chart => toggleLoading(chart, true));
             // 1. Busiest Days Chart
-            const busiestDaysResponse = await fetch('/Dashboard/Top10BusiestDays');
+            const busiestDaysResponse = await fetch(buildUrl('/Dashboard/Top10BusiestDays'));
             const busiestDaysData = await busiestDaysResponse.json();
             
             const ctx1 = document.getElementById('busiestDaysChart').getContext('2d');
@@ -378,7 +386,7 @@
             });
 
             // 2. Payment Type Chart
-            const paymentTypeResponse = await fetch('/Dashboard/PaymentTypeDistribution');
+            const paymentTypeResponse = await fetch(buildUrl('/Dashboard/PaymentTypeDistribution'));
             const paymentTypeData = await paymentTypeResponse.json();
             
             const ctx2 = document.getElementById('paymentTypeChart').getContext('2d');
@@ -441,14 +449,14 @@
             });
 
             // 3. Hourly Patterns Chart
-            const hourlyResponse = await fetch('/Dashboard/HourlyPatterns');
+            const hourlyResponse = await fetch(buildUrl('/Dashboard/HourlyPatterns'));
             const hourlyData = await hourlyResponse.json();
             
             const ctx3 = document.getElementById('hourlyPatternsChart').getContext('2d');
             const gradient3 = createGradient(ctx3, 'rgba(75, 192, 192, 0.6)', 'rgba(75, 192, 192, 0.1)');
             
             // Get dashboard metrics
-            const metricsResponse = await fetch('/Dashboard/DashboardMetrics');
+            const metricsResponse = await fetch(buildUrl('/Dashboard/DashboardMetrics'));
             const metricsData = await metricsResponse.json();
             
             // Update metrics display with proper formatting
@@ -537,7 +545,7 @@
             });
 
             // 4. Distance Distribution Chart
-            const distanceResponse = await fetch('/Dashboard/DistanceDistribution');
+            const distanceResponse = await fetch(buildUrl('/Dashboard/DistanceDistribution'));
             const distanceData = await distanceResponse.json();
             
             const ctx4 = document.getElementById('distanceDistributionChart').getContext('2d');
@@ -612,7 +620,7 @@
             });
 
             // 5. Vendor Revenue Chart
-            const vendorResponse = await fetch('/Dashboard/VendorRevenue');
+            const vendorResponse = await fetch(buildUrl('/Dashboard/VendorRevenue'));
             const vendorData = await vendorResponse.json();
             
             const ctx5 = document.getElementById('vendorRevenueChart').getContext('2d');
@@ -680,7 +688,7 @@
             });
 
             // 6. Cumulative Stats Chart
-            const cumulativeResponse = await fetch('/Dashboard/CumulativeStats');
+            const cumulativeResponse = await fetch(buildUrl('/Dashboard/CumulativeStats'));
             const cumulativeData = await cumulativeResponse.json();
             
             const ctx6 = document.getElementById('cumulativeStatsChart').getContext('2d');
@@ -805,7 +813,7 @@
         // Load Advanced Analytics Charts
         async function loadAdvancedCharts() {
             // Top Pickup Locations
-            const pickupResponse = await fetch('/Dashboard/TopPickupLocations');
+            const pickupResponse = await fetch(buildUrl('/Dashboard/TopPickupLocations'));
             const pickupResult = await pickupResponse.json();
             
             document.getElementById('pickupLocationsTime').textContent = `Executed in ${pickupResult.executionTimeMs.toFixed(2)}ms`;
@@ -851,7 +859,7 @@
             });
 
             // Hourly Revenue Time Series
-            const timeSeriesResponse = await fetch('/Dashboard/HourlyRevenueTimeSeries');
+            const timeSeriesResponse = await fetch(buildUrl('/Dashboard/HourlyRevenueTimeSeries'));
             const timeSeriesResult = await timeSeriesResponse.json();
             
             document.getElementById('hourlyRevenueTime').textContent = `Executed in ${timeSeriesResult.executionTimeMs.toFixed(2)}ms`;
@@ -908,7 +916,7 @@
             });
 
             // Advanced Trip Analytics
-            const tripAnalyticsResponse = await fetch('/Dashboard/AdvancedTripAnalytics');
+            const tripAnalyticsResponse = await fetch(buildUrl('/Dashboard/AdvancedTripAnalytics'));
             const tripAnalyticsResult = await tripAnalyticsResponse.json();
             
             document.getElementById('tripAnalyticsTime').textContent = `Executed in ${tripAnalyticsResult.executionTimeMs.toFixed(2)}ms`;
@@ -953,7 +961,7 @@
             });
 
             // Weekday vs Weekend Analysis
-            const weekendResponse = await fetch('/Dashboard/WeekdayVsWeekendAnalysis');
+            const weekendResponse = await fetch(buildUrl('/Dashboard/WeekdayVsWeekendAnalysis'));
             const weekendResult = await weekendResponse.json();
             
             document.getElementById('weekendAnalysisTime').textContent = `Executed in ${weekendResult.executionTimeMs.toFixed(2)}ms`;
@@ -1004,7 +1012,7 @@
         // Load Performance Comparison
         async function loadPerformanceComparison() {
             try {
-                const performanceResponse = await fetch('/Dashboard/PerformanceComparison');
+                const performanceResponse = await fetch(buildUrl('/Dashboard/PerformanceComparison'));
                 const performanceResult = await performanceResponse.json();
                 
                 const ctx11 = document.getElementById('performanceComparisonChart').getContext('2d');
